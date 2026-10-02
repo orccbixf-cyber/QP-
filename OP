@@ -1,0 +1,397 @@
+-- ==========================================
+-- Auto Block Script for Forsaken (Fixed Bug & No Camera Flick)
+-- Name: Auto Block
+-- ==========================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local LocalPlayer = Players.LocalPlayer
+
+-- Config Settings
+local Config = {
+    AutoBlock = false,
+    BlockDistance = 20,
+    ShowBlockRange = true,
+    InfStamina = false,
+    ESP = false,
+    AutoGenerator = false,
+    AutoPunch = false,
+    PunchDelay = 0.1
+}
+
+-- ScreenGui Setup
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoBlockGUI_Fixed"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ==========================================
+-- Floating Toggle Button
+-- ==========================================
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "OpenCloseBtn"
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.15, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+ToggleBtn.Text = "AB"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextSize = 18
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.Active = true
+ToggleBtn.Parent = ScreenGui
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(1, 0)
+ToggleCorner.Parent = ToggleBtn
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 310, 0, 450)
+MainFrame.Position = UDim2.new(0.5, -155, 0.5, -225)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Visible = true
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- ==========================================
+-- Mobile Drag System (No Camera Glitch)
+-- ==========================================
+local function MakeDraggable(guiObj, dragHandle)
+    local dragging = false
+    local dragStart, startPos
+
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = guiObj.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            guiObj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+MakeDraggable(MainFrame, MainFrame)
+MakeDraggable(ToggleBtn, ToggleBtn)
+
+-- ==========================================
+-- UI Elements Setup
+-- ==========================================
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+Title.Text = "Auto Block - Forsaken (Fixed)"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = Title
+
+local Container = Instance.new("ScrollingFrame")
+Container.Size = UDim2.new(1, -20, 1, -50)
+Container.Position = UDim2.new(0, 10, 0, 45)
+Container.BackgroundTransparency = 1
+Container.ScrollBarThickness = 4
+Container.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 8)
+UIListLayout.Parent = Container
+
+local function CreateToggle(name, default, callback)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(1, -10, 0, 35)
+    Button.BackgroundColor3 = default and Color3.fromRGB(46, 139, 87) or Color3.fromRGB(50, 50, 50)
+    Button.Text = name .. ": " .. (default and "ON" or "OFF")
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.Font = Enum.Font.SourceSans
+    Button.TextSize = 15
+    Button.Parent = Container
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 6)
+    Corner.Parent = Button
+
+    local state = default
+    Button.MouseButton1Click:Connect(function()
+        state = not state
+        Button.BackgroundColor3 = state and Color3.fromRGB(46, 139, 87) or Color3.fromRGB(50, 50, 50)
+        Button.Text = name .. ": " .. (state and "ON" or "OFF")
+        callback(state)
+    end)
+    return Button
+end
+
+local function CreateSlider(name, min, max, default, decimals, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, -10, 0, 50)
+    Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    Frame.Parent = Container
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 6)
+    Corner.Parent = Frame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -10, 0, 20)
+    Label.Position = UDim2.new(0, 5, 0, 2)
+    Label.BackgroundTransparency = 1
+    Label.Text = name .. ": " .. tostring(default)
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.Font = Enum.Font.SourceSans
+    Label.TextSize = 14
+    Label.Parent = Frame
+
+    local SliderBar = Instance.new("TextButton")
+    SliderBar.Name = "SliderBar"
+    SliderBar.Size = UDim2.new(1, -20, 0, 15)
+    SliderBar.Position = UDim2.new(0, 10, 0, 28)
+    SliderBar.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    SliderBar.Text = ""
+    SliderBar.AutoButtonColor = false
+    SliderBar.Parent = Frame
+
+    local BarCorner = Instance.new("UICorner")
+    BarCorner.CornerRadius = UDim.new(0, 4)
+    BarCorner.Parent = SliderBar
+
+    local Fill = Instance.new("Frame")
+    Fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    Fill.BackgroundColor3 = Color3.fromRGB(46, 139, 87)
+    Fill.BorderSizePixel = 0
+    Fill.Parent = SliderBar
+
+    local isDragging = false
+
+    local function updateValue(input)
+        local posX = math.clamp(input.Position.X - SliderBar.AbsolutePosition.X, 0, SliderBar.AbsoluteSize.X)
+        local percentage = posX / SliderBar.AbsoluteSize.X
+        local rawValue = min + (max - min) * percentage
+        
+        local value
+        if decimals > 0 then
+            local mult = 10 ^ decimals
+            value = math.floor(rawValue * mult + 0.5) / mult
+        else
+            value = math.floor(rawValue + 0.5)
+        end
+
+        Fill.Size = UDim2.new(percentage, 0, 1, 0)
+        Label.Text = name .. ": " .. tostring(value)
+        callback(value)
+    end
+
+    SliderBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = true
+            updateValue(input)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateValue(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = false
+        end
+    end)
+end
+
+-- Visualizer Part
+local CirclePart = Instance.new("Part")
+CirclePart.Name = "BlockCirclePart"
+CirclePart.Shape = Enum.PartType.Cylinder
+CirclePart.Material = Enum.Material.ForceField
+CirclePart.Color = Color3.fromRGB(0, 255, 150)
+CirclePart.Transparency = 0.7
+CirclePart.Anchored = true
+CirclePart.CanCollide = false
+
+-- ==========================================
+-- 1. Auto Block (Safe Loop & Cooldown)
+-- ==========================================
+CreateToggle("Auto Block", Config.AutoBlock, function(val) Config.AutoBlock = val end)
+CreateToggle("Show Block Range", Config.ShowBlockRange, function(val) Config.ShowBlockRange = val end)
+CreateSlider("Block Distance", 5, 100, Config.BlockDistance, 0, function(val) Config.BlockDistance = val end)
+
+local lastBlockTime = 0
+RunService.Heartbeat:Connect(function()
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+    if hrp and Config.ShowBlockRange and Config.AutoBlock then
+        CirclePart.Parent = workspace
+        CirclePart.Size = Vector3.new(0.1, Config.BlockDistance * 2, Config.BlockDistance * 2)
+        CirclePart.CFrame = hrp.CFrame * CFrame.Angles(0, 0, math.rad(90)) + Vector3.new(0, -2.5, 0)
+    else
+        CirclePart.Parent = nil
+    end
+
+    if not Config.AutoBlock or not hrp then return end
+
+    if tick() - lastBlockTime >= 0.3 then
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") and obj ~= char then
+                local dist = (hrp.Position - obj.HumanoidRootPart.Position).Magnitude
+                if dist <= Config.BlockDistance then
+                    lastBlockTime = tick()
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                    task.wait(0.05)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                    break
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- 2. Infinite Stamina (Safe Override)
+-- ==========================================
+CreateToggle("Infinite Stamina", Config.InfStamina, function(val) Config.InfStamina = val end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if Config.InfStamina then
+            pcall(function()
+                local char = LocalPlayer.Character
+                if char then
+                    for _, child in pairs(char:GetChildren()) do
+                        if child.Name:lower():find("stamina") and child:IsA("ValueBase") then
+                            child.Value = child.MaxValue or 100
+                        end
+                    end
+                    if char:GetAttribute("Stamina") then
+                        char:SetAttribute("Stamina", 100)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- ==========================================
+-- 3. ESP (Clean Cleanup System)
+-- ==========================================
+local ESPFolder = Instance.new("Folder", ScreenGui)
+ESPFolder.Name = "ESPFolder"
+
+CreateToggle("ESP", Config.ESP, function(val) 
+    Config.ESP = val 
+    if not val then
+        ESPFolder:ClearAllChildren()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if Config.ESP then
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local hl = ESPFolder:FindFirstChild(player.Name)
+                    if not hl then
+                        hl = Instance.new("Highlight")
+                        hl.Name = player.Name
+                        hl.FillColor = Color3.fromRGB(255, 50, 50)
+                        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                        hl.Parent = ESPFolder
+                    end
+                    hl.Adornee = player.Character
+                end
+            end
+            for _, hl in pairs(ESPFolder:GetChildren()) do
+                local p = Players:FindFirstChild(hl.Name)
+                if not p or not p.Character then
+                    hl:Destroy()
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- 4. Auto Generator (Virtual Key Event)
+-- ==========================================
+CreateToggle("Auto Generator", Config.AutoGenerator, function(val) Config.AutoGenerator = val end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if Config.AutoGenerator then
+            pcall(function()
+                local pgui = LocalPlayer:FindFirstChild("PlayerGui")
+                if pgui then
+                    local check = pgui:FindFirstChild("SkillCheck", true) or pgui:FindFirstChild("Minigame", true)
+                    if check and check.Visible then
+                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                        task.wait(0.05)
+                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- ==========================================
+-- 5. Auto Punch (Fixed Screen Shake)
+-- ==========================================
+CreateToggle("Auto Punch", Config.AutoPunch, function(val) Config.AutoPunch = val end)
+CreateSlider("Punch Speed (Sec)", 0.05, 0.5, Config.PunchDelay, 2, function(val) Config.PunchDelay = val end)
+
+task.spawn(function()
+    while true do
+        task.wait(Config.PunchDelay)
+        if Config.AutoPunch then
+            pcall(function()
+                local char = LocalPlayer.Character
+                if char then
+                    local tool = char:FindFirstChildOfClass("Tool")
+                    if tool then
+                        tool:Activate()
+                    else
+                        -- เรียกใช้งานแอนิเมชันหรือ RemoteEvent โจมตีโดยไม่ต้องจำลองการกดคลิกเมาส์บนหน้าจอ
+                        local hum = char:FindFirstChildOfClass("Humanoid")
+                        if hum then
+                            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
